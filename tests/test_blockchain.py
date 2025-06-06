@@ -5,7 +5,7 @@ from blockchain.merkle_tree import MerkleTree, LEFT, RIGHT
 
 
 class TestMerkleTree(unittest.TestCase):
-    def setUp(self):
+    def set_up(self):
         # Create three sample leaves by hashing simple strings.
         # sha256 in hash_utils will encode str to bytes automatically.
         self.leaf_a = sha256("a")

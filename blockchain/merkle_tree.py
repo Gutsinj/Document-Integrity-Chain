@@ -85,9 +85,12 @@ class MerkleTree():
         
         return current['hash']
     
-    def verify(self, hash):
+    def verify(self, hash, root=None):
+        if not root: 
+            root = self.root
+        
         try:
             proof = self.generateProof(hash, self.leaves)
-            return self.root == self.getRootFromMerkleProof(proof)
+            return root == self.getRootFromMerkleProof(proof)
         except ValueError:
             return False
