@@ -1,13 +1,14 @@
+import time
+import json
 import unittest
 from blockchain.block import Block
+from blockchain.chain import Blockchain
 from crypto.hash_utils import sha256
 from blockchain.merkle_tree import MerkleTree, LEFT, RIGHT
 
 
 class TestMerkleTree(unittest.TestCase):
-    def set_up(self):
-        # Create three sample leaves by hashing simple strings.
-        # sha256 in hash_utils will encode str to bytes automatically.
+    def setUp(self):
         self.leaf_a = sha256("a")
         self.leaf_b = sha256("b")
         self.leaf_c = sha256("c")
@@ -15,136 +16,190 @@ class TestMerkleTree(unittest.TestCase):
         self.mt = MerkleTree(self.leaves.copy())
 
     def test_tree_structure_and_levels(self):
-        """
-        For three leaves, the tree should duplicate the last leaf ("c") to make an even count.
-        Level 0 (leaves): length 4 after duplication
-        Level 1 (parents of pairs): length 2
-        Level 2 (root): length 1
-        """
         tree = self.mt.tree
         # After duplication: [a, b, c, c]
-        self.assertEqual(len(tree), 3)                        # Three levels: leaves, parents, root
-        self.assertEqual(len(tree[0]), 4)                     # 3 original + 1 duplicate
+        self.assertEqual(len(tree), 3)
+        self.assertEqual(len(tree[0]), 4)
         self.assertEqual(tree[0], [self.leaf_a, self.leaf_b, self.leaf_c, self.leaf_c])
 
-        # Level 1: parent hashes of pairs (a‖b) and (c‖c)
+        # Level 1: parent hashes
         expected_parent_0 = sha256(self.leaf_a + self.leaf_b)
         expected_parent_1 = sha256(self.leaf_c + self.leaf_c)
-        self.assertEqual(len(tree[1]), 2)
-        self.assertEqual(tree[1][0], expected_parent_0)
-        self.assertEqual(tree[1][1], expected_parent_1)
+        self.assertEqual(tree[1], [expected_parent_0, expected_parent_1])
 
-        # Level 2: single root hash = sha256(parent_0‖parent_1)
+        # Level 2: root
         expected_root = sha256(expected_parent_0 + expected_parent_1)
-        self.assertEqual(len(tree[2]), 1)
-        self.assertEqual(tree[2][0], expected_root)
+        self.assertEqual(tree[2], [expected_root])
 
     def test_root_property(self):
-        """ The .root property should match the single hash at the top of tree. """
-        computed_root = self.mt.root
-        # Recompute expected root directly
         level0 = [self.leaf_a, self.leaf_b, self.leaf_c, self.leaf_c]
         parent0 = sha256(level0[0] + level0[1])
         parent1 = sha256(level0[2] + level0[3])
         expected = sha256(parent0 + parent1)
-        self.assertEqual(computed_root, expected)
+        self.assertEqual(self.mt.root, expected)
 
     def test_get_leaf_direction(self):
-        """
-        getLeafDirection should return LEFT for even indices, RIGHT for odd.
-        After duplication: indices are [0:a, 1:b, 2:c, 3:c]
-        """
-        tree0 = self.mt.tree[0]
-        # index of leaf_a = 0 → LEFT
         self.assertEqual(self.mt.getLeafDirection(self.leaf_a), LEFT)
-        # index of leaf_b = 1 → RIGHT
         self.assertEqual(self.mt.getLeafDirection(self.leaf_b), RIGHT)
-        # index of leaf_c = 2 (first occurrence) → LEFT
         self.assertEqual(self.mt.getLeafDirection(self.leaf_c), LEFT)
 
     def test_generate_and_validate_proof(self):
-        """
-        For each original leaf, generateProof + getRootFromMerkleProof should reconstruct the root.
-        Also, verify() should return True for valid leaves and False for an invalid hash.
-        """
         for leaf in [self.leaf_a, self.leaf_b, self.leaf_c]:
             proof = self.mt.generateProof(leaf, self.leaves)
-            # Proof should be a non-empty list of dicts
             self.assertIsInstance(proof, list)
             self.assertGreater(len(proof), 0)
-            # The first element must reference the leaf itself
             self.assertEqual(proof[0]["hash"], leaf)
 
-            # Reconstruct root from proof
             reconstructed = self.mt.getRootFromMerkleProof(proof)
             self.assertEqual(reconstructed, self.mt.root)
-
-            # verify() should return True for that leaf
             self.assertTrue(self.mt.verify(leaf))
 
-        # An entirely bogus hash should fail verification
         bogus = sha256("not-in-tree")
         self.assertFalse(self.mt.verify(bogus))
 
     def test_generate_proof_sibling_order(self):
-        """
-        Confirm that the sibling order in the proof matches LEFT/RIGHT logic.
-        Specifically for leaf_c (index 2):
-          - At level 0: index 2 is even → LEFT, sibling is index 3 (c) with direction RIGHT.
-          - At level 1: after pairing, index 2//2 = 1 at level1, which is odd → RIGHT, sibling index 0 with direction LEFT.
-        """
         proof_c = self.mt.generateProof(self.leaf_c, self.leaves)
-        # Proof structure: [ {hash:c, direction:LEFT}, {hash:sibling_c, direction:RIGHT}, {hash: parent_ab, direction:LEFT} ]
         self.assertEqual(proof_c[0]["hash"], self.leaf_c)
         self.assertEqual(proof_c[0]["direction"], LEFT)
-
-        # Next sibling at level0 is the duplicated c
         self.assertEqual(proof_c[1]["hash"], self.leaf_c)
         self.assertEqual(proof_c[1]["direction"], RIGHT)
 
-        # Parent-level sibling is hash(ab)
         parent_ab = sha256(self.leaf_a + self.leaf_b)
         self.assertEqual(proof_c[2]["hash"], parent_ab)
         self.assertEqual(proof_c[2]["direction"], LEFT)
 
     def test_make_even_odd_leaves(self):
-        """
-        If the user supplies an odd number of leaves directly to makeEven, the last leaf should be duplicated.
-        We'll bypass generateMerkleTree and call makeEven explicitly.
-        """
-        temp = ["x", "y", "z"]  # treat as placeholders (strings)
-        mt_temp = MerkleTree(["x", "y", "z"])  # we only need makeEven, tree isn't used here
+        temp = ["x", "y", "z"]
+        mt_temp = MerkleTree(["x", "y", "z"])
         mt_temp.makeEven(temp)
         self.assertEqual(len(temp), 4)
-        self.assertEqual(temp[-1], "z")  # last element must be duplicated
+        self.assertEqual(temp[-1], "z")
 
     def test_generate_tree_empty(self):
-        """ If generateMerkleTree is given an empty list, it should return None. """
         mt_empty = MerkleTree([])
         self.assertIsNone(mt_empty.tree)
         self.assertIsNone(mt_empty.root)
 
     def test_verify_raises_false_on_missing_leaf(self):
-        """
-        If generateProof is called on a leaf not in the tree, a ValueError
-        would be raised when .index() is called, and verify() should catch it and return False.
-        """
-        # Choose some arbitrary string not in self.leaves
         missing = sha256("missing")
-        # Directly call verify to ensure it returns False, not an exception
         self.assertFalse(self.mt.verify(missing))
+
+
+class TestBlock(unittest.TestCase):
+    def setUp(self):
+        self.test_index = 1
+        self.test_timestamp = time.time()
+        self.test_merkle_root = "abc123"
+        self.test_prev_hash = "def456"
+        self.block = Block(self.test_index, self.test_timestamp, self.test_merkle_root, self.test_prev_hash)
+
+    def test_block_initialization(self):
+        # Block properties are set correctly
+        self.assertEqual(self.block.index, self.test_index)
+        self.assertEqual(self.block.timestamp, self.test_timestamp)
+        self.assertEqual(self.block.merkle_root, self.test_merkle_root)
+        self.assertEqual(self.block.prev_hash, self.test_prev_hash)
+        self.assertIsNotNone(self.block.hash)
+
+    def test_compute_hash_consistency(self):
+        # Hash should be deterministic - same inputs produce same hash
+        hash1 = self.block.computeHash()
+        hash2 = self.block.computeHash()
+        self.assertEqual(hash1, hash2)
+        self.assertEqual(hash1, self.block.hash)
+
+    def test_compute_hash_different_data(self):
+        # Different block data should produce different hashes
+        block2 = Block(2, self.test_timestamp, self.test_merkle_root, self.test_prev_hash)
+        self.assertNotEqual(self.block.hash, block2.hash)
+
+    def test_hash_matches_manual_computation(self):
+        # Verify hash computation matches expected SHA256 result
+        expected_data = {
+            'index': self.test_index,
+            'timestamp': self.test_timestamp,  # Now using timestamp float
+            'merkle_root': self.test_merkle_root,
+            'prev_hash': self.test_prev_hash
+        }
+        expected_serialized = json.dumps(expected_data)
+        expected_hash = sha256(expected_serialized)
+        self.assertEqual(self.block.hash, expected_hash)
+
+    def test_genesis_block(self):
+        # Genesis block with zero values
+        genesis = Block(0, 0, 0, 0)  # Use 0 for timestamp instead of datetime
+        self.assertEqual(genesis.index, 0)
+        self.assertEqual(genesis.timestamp, 0)
+        self.assertEqual(genesis.merkle_root, 0)
+        self.assertEqual(genesis.prev_hash, 0)
+        self.assertIsNotNone(genesis.hash)
+
+
+class TestBlockchain(unittest.TestCase):
+    def setUp(self):
+        self.blockchain = Blockchain()
+
+    def test_blockchain_initialization(self):
+        # Blockchain should start with genesis block
+        self.assertEqual(len(self.blockchain.chain), 1)
+        genesis = self.blockchain.chain[0]
+        self.assertEqual(genesis.index, 0)
+        self.assertEqual(genesis.merkle_root, 0)
+        self.assertEqual(genesis.prev_hash, 0)
+        self.assertIsNotNone(genesis.hash)
+
+    def test_add_valid_block(self):
+        # Adding a valid block should succeed
+        latest = self.blockchain.getLatestBlock()
+        new_block = Block(1, time.time(), "merkle123", latest.computeHash())
+        
+        result = self.blockchain.addBlock(new_block)
+        self.assertTrue(result)
+        self.assertEqual(len(self.blockchain.chain), 2)
+        self.assertEqual(self.blockchain.getLatestBlock(), new_block)
+
+    def test_add_invalid_block(self):
+        # Adding block with wrong prev_hash should fail
+        invalid_block = Block(1, time.time(), "merkle123", "wrong_hash")
+        
+        result = self.blockchain.addBlock(invalid_block)
+        self.assertFalse(result)
+        self.assertEqual(len(self.blockchain.chain), 1)
+
+    def test_is_valid_chain(self):
+        # Valid chain should return True
+        self.assertTrue(self.blockchain.isValidChain(self.blockchain.chain))
+        
+        # Add valid block and test again
+        latest = self.blockchain.getLatestBlock()
+        new_block = Block(1, time.time(), "merkle123", latest.computeHash())
+        self.blockchain.addBlock(new_block)
+        self.assertTrue(self.blockchain.isValidChain(self.blockchain.chain))
+        
+        # Empty chain should return False
+        self.assertFalse(self.blockchain.isValidChain([]))
+        self.assertFalse(self.blockchain.isValidChain(None))
+
+    def test_resolve_forks(self):
+        # Create longer valid chain
+        longer_chain = [self.blockchain.chain[0]]  # Start with same genesis
+        prev_hash = longer_chain[0].computeHash()
+        
+        for i in range(1, 3):  # Add 2 more blocks
+            block = Block(i, time.time(), f"merkle{i}", prev_hash)
+            longer_chain.append(block)
+            prev_hash = block.computeHash()
+        
+        # Should replace current chain with longer one
+        result = self.blockchain.resolve_forks([longer_chain])
+        self.assertTrue(result)
+        self.assertEqual(len(self.blockchain.chain), 3)
+        
+        # Shorter chain should not replace current chain
+        shorter_chain = [self.blockchain.chain[0]]
+        result = self.blockchain.resolve_forks([shorter_chain])
+        self.assertFalse(result)
+        self.assertEqual(len(self.blockchain.chain), 3)
 
 if __name__ == "__main__":
     unittest.main()
-
-# def check_index_incrementation():
-#     b1 = Block()
-#     assert(b1.index == 0)
-#     b2 = Block()
-#     assert(b2.index == 1)
-#     assert(Block.INDEX == 2)
-
-
-
-# if __name__ == "__main__":
-#     check_index_incrementation()
