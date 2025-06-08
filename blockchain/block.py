@@ -4,14 +4,14 @@ from crypto.signer import sign_digest, verify_signature
 
 class Block:
     # Initialize block with data and compute hash
-    def __init__(self, index, timestamp, merkle_root, prev_hash, signer_id):
+    def __init__(self, index, timestamp, merkle_root, prev_hash, signer_id, private_key):
         self.index = index
         self.timestamp = timestamp
         self.merkle_root = merkle_root
         self.prev_hash = prev_hash
         self.signer_id = signer_id
         self.signature = None
-        self.sign_block()
+        self.sign_block(private_key)
         self.hash = self.compute_hash()
     
     # Generate SHA256 hash from block data
@@ -22,7 +22,7 @@ class Block:
             'merkle_root': self.merkle_root.hex() if isinstance(self.merkle_root, bytes) else self.merkle_root,
             'prev_hash': self.prev_hash.hex() if isinstance(self.prev_hash, bytes) else self.prev_hash,
             'signer_id': self.signer_id,
-            'signature': self.signature
+            'signature': self.signature.hex() if isinstance(self.signature, bytes) else self.signature
         }
         data_serialized = json.dumps(data)
         return sha256(data_serialized)

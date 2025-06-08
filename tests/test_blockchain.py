@@ -87,11 +87,19 @@ class TestMerkleTree(unittest.TestCase):
 
 class TestBlock(unittest.TestCase):
     def setUp(self):
+        # generate test keypair for signing
+        from crypto.key_manager import generate_keypair, load_private_key, load_public_key
+        self.signer_id = "test"
+        generate_keypair(output_path='./tests/keys', signer_id=self.signer_id)
+        self.priv_key = load_private_key('./tests/keys/private_key_test.pem')
+        self.pub_key = load_public_key('./tests/keys/public_key_test.pem')
+
         self.test_index = 1
         self.test_timestamp = time.time()
         self.test_merkle_root = "abc123"
         self.test_prev_hash = "def456"
-        self.block = Block(self.test_index, self.test_timestamp, self.test_merkle_root, self.test_prev_hash)
+        # include private key in block creation
+        self.block = Block(self.test_index, self.test_timestamp, self.test_merkle_root, self.test_prev_hash, self.signer_id, self.priv_key)
 
     def test_block_initialization(self):
         # Block properties are set correctly
@@ -100,6 +108,9 @@ class TestBlock(unittest.TestCase):
         self.assertEqual(self.block.merkle_root, self.test_merkle_root)
         self.assertEqual(self.block.prev_hash, self.test_prev_hash)
         self.assertIsNotNone(self.block.hash)
+        # signature fields should be set after init
+        self.assertIsNotNone(self.block.signature)
+        self.assertIsNotNone(self.block.signer_id)
 
     def test_compute_hash_consistency(self):
         # Hash should be deterministic - same inputs produce same hash
@@ -110,34 +121,49 @@ class TestBlock(unittest.TestCase):
 
     def test_compute_hash_different_data(self):
         # Different block data should produce different hashes
-        block2 = Block(2, self.test_timestamp, self.test_merkle_root, self.test_prev_hash)
+        block2 = Block(2, self.test_timestamp, self.test_merkle_root, self.test_prev_hash, self.signer_id, self.priv_key)
         self.assertNotEqual(self.block.hash, block2.hash)
 
     def test_hash_matches_manual_computation(self):
         # Verify hash computation matches expected SHA256 result
         expected_data = {
             'index': self.test_index,
-            'timestamp': self.test_timestamp,  # Now using timestamp float
-            'merkle_root': self.test_merkle_root,
-            'prev_hash': self.test_prev_hash
+            'timestamp': self.test_timestamp,
+            'merkle_root': self.test_merkle_root.hex() if isinstance(self.test_merkle_root, bytes) else self.test_merkle_root,
+            'prev_hash': self.test_prev_hash.hex() if isinstance(self.test_prev_hash, bytes) else self.test_prev_hash,
+            'signer_id': self.block.signer_id,
+            'signature': self.block.signature.hex() if isinstance(self.block.signature, bytes) else self.block.signature
         }
         expected_serialized = json.dumps(expected_data)
         expected_hash = sha256(expected_serialized)
         self.assertEqual(self.block.hash, expected_hash)
 
+    def test_sign_and_verify(self):
+        # Verify that block.verify_block_signature works
+        self.assertTrue(self.block.verify_block_signature(self.pub_key))
+
     def test_genesis_block(self):
-        # Genesis block with zero values
-        genesis = Block(0, 0, 0, 0)  # Use 0 for timestamp instead of datetime
+        # Genesis block with zero values and no signing key
+        genesis = Block(0, 0, 0, 0, 0, self.priv_key)
         self.assertEqual(genesis.index, 0)
         self.assertEqual(genesis.timestamp, 0)
         self.assertEqual(genesis.merkle_root, 0)
         self.assertEqual(genesis.prev_hash, 0)
         self.assertIsNotNone(genesis.hash)
+        self.assertIsNotNone(genesis.signer_id)
 
 
 class TestBlockchain(unittest.TestCase):
     def setUp(self):
+        from crypto.key_manager import generate_keypair, get_private_key_from_id, get_public_key_from_id
+        # setup blockchain and test keypair
+        self.signer_id = 'test'
+        self.output_path='./tests/keys'
+        generate_keypair(output_path=self.output_path, signer_id=self.signer_id)
         self.blockchain = Blockchain()
+        self.priv_key = get_private_key_from_id(self.signer_id)
+        self.pub_key = get_public_key_from_id(self.signer_id)
+        
 
     def test_blockchain_initialization(self):
         # Blockchain should start with genesis block
@@ -147,20 +173,21 @@ class TestBlockchain(unittest.TestCase):
         self.assertEqual(genesis.merkle_root, 0)
         self.assertEqual(genesis.prev_hash, 0)
         self.assertIsNotNone(genesis.hash)
+        self.assertIsNotNone(genesis.signature)
+        self.assertIsNotNone(genesis.signer_id)
 
     def test_add_valid_block(self):
-        # Adding a valid block should succeed
         latest = self.blockchain.get_latest_block()
-        new_block = Block(1, time.time(), "merkle123", latest.compute_hash())
-        
+        # include private key in block creation
+        new_block = Block(1, time.time(), "merkle123", latest.compute_hash(), self.signer_id, self.priv_key)
+
         result = self.blockchain.add_block(new_block)
         self.assertTrue(result)
         self.assertEqual(len(self.blockchain.chain), 2)
         self.assertEqual(self.blockchain.get_latest_block(), new_block)
 
     def test_add_invalid_block(self):
-        # Adding block with wrong prev_hash should fail
-        invalid_block = Block(1, time.time(), "merkle123", "wrong_hash")
+        invalid_block = Block(1, time.time(), "merkle123", "wrong_hash", self.signer_id, self.priv_key)
         
         result = self.blockchain.add_block(invalid_block)
         self.assertFalse(result)
@@ -169,37 +196,37 @@ class TestBlockchain(unittest.TestCase):
     def test_is_valid_chain(self):
         # Valid chain should return True
         self.assertTrue(self.blockchain.is_valid_chain(self.blockchain.chain))
-        
+
         # Add valid block and test again
         latest = self.blockchain.get_latest_block()
-        new_block = Block(1, time.time(), "merkle123", latest.compute_hash())
+        new_block = Block(1, time.time(), "merkle123", latest.compute_hash(), self.signer_id, self.priv_key)
         self.blockchain.add_block(new_block)
         self.assertTrue(self.blockchain.is_valid_chain(self.blockchain.chain))
-        
-        # Empty chain should return False
+
+        # Empty or None chain should return False
         self.assertFalse(self.blockchain.is_valid_chain([]))
         self.assertFalse(self.blockchain.is_valid_chain(None))
 
     def test_resolve_forks(self):
         # Create longer valid chain
-        longer_chain = [self.blockchain.chain[0]]  # Start with same genesis
+        longer_chain = [self.blockchain.chain[0]]
         prev_hash = longer_chain[0].compute_hash()
-        
-        for i in range(1, 3):  # Add 2 more blocks
-            block = Block(i, time.time(), f"merkle{i}", prev_hash)
+
+        for i in range(1, 3):
+            block = Block(i, time.time(), f"merkle{i}", prev_hash, self.signer_id, self.priv_key)
             longer_chain.append(block)
             prev_hash = block.compute_hash()
-        
-        # Should replace current chain with longer one
+
         result = self.blockchain.resolve_forks([longer_chain])
         self.assertTrue(result)
         self.assertEqual(len(self.blockchain.chain), 3)
-        
+
         # Shorter chain should not replace current chain
         shorter_chain = [self.blockchain.chain[0]]
         result = self.blockchain.resolve_forks([shorter_chain])
         self.assertFalse(result)
         self.assertEqual(len(self.blockchain.chain), 3)
+
 
 if __name__ == "__main__":
     unittest.main()

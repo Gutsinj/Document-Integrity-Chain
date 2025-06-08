@@ -1,6 +1,6 @@
 from blockchain.block import Block
 import time
-from crypto.key_manager import get_public_key_from_id
+from crypto.key_manager import get_public_key_from_id, generate_keypair
 
 class Blockchain:
     # Initialize empty blockchain with genesis block
@@ -10,7 +10,8 @@ class Blockchain:
 
     # Create and add the first block (genesis block)
     def create_starting_block(self):
-        start = Block(0, time.time(), 0, 0, 0)
+        priv_key, _ = generate_keypair("./keys", "genesis")
+        start = Block(0, time.time(), 0, 0, "genesis", priv_key)
         self.chain.append(start)
 
     # Return the most recent block in the chain
@@ -40,7 +41,7 @@ class Blockchain:
         prev = 0
         for i in range(len(chain)):
             block = chain[i]
-            
+
             pub_key = get_public_key_from_id(block.signer_id)
             if not block.verify_block_signature(pub_key):
                 return False
