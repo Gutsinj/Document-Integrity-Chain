@@ -39,18 +39,18 @@ class TestMerkleTree(unittest.TestCase):
         self.assertEqual(self.mt.root, expected)
 
     def test_get_leaf_direction(self):
-        self.assertEqual(self.mt.getLeafDirection(self.leaf_a), LEFT)
-        self.assertEqual(self.mt.getLeafDirection(self.leaf_b), RIGHT)
-        self.assertEqual(self.mt.getLeafDirection(self.leaf_c), LEFT)
+        self.assertEqual(self.mt.get_leaf_direction(self.leaf_a), LEFT)
+        self.assertEqual(self.mt.get_leaf_direction(self.leaf_b), RIGHT)
+        self.assertEqual(self.mt.get_leaf_direction(self.leaf_c), LEFT)
 
     def test_generate_and_validate_proof(self):
         for leaf in [self.leaf_a, self.leaf_b, self.leaf_c]:
-            proof = self.mt.generateProof(leaf, self.leaves)
+            proof = self.mt.generate_proof(leaf, self.leaves)
             self.assertIsInstance(proof, list)
             self.assertGreater(len(proof), 0)
             self.assertEqual(proof[0]["hash"], leaf)
 
-            reconstructed = self.mt.getRootFromMerkleProof(proof)
+            reconstructed = self.mt.get_root_from_merkle_proof(proof)
             self.assertEqual(reconstructed, self.mt.root)
             self.assertTrue(self.mt.verify(leaf))
 
@@ -58,7 +58,7 @@ class TestMerkleTree(unittest.TestCase):
         self.assertFalse(self.mt.verify(bogus))
 
     def test_generate_proof_sibling_order(self):
-        proof_c = self.mt.generateProof(self.leaf_c, self.leaves)
+        proof_c = self.mt.generate_proof(self.leaf_c, self.leaves)
         self.assertEqual(proof_c[0]["hash"], self.leaf_c)
         self.assertEqual(proof_c[0]["direction"], LEFT)
         self.assertEqual(proof_c[1]["hash"], self.leaf_c)
@@ -71,7 +71,7 @@ class TestMerkleTree(unittest.TestCase):
     def test_make_even_odd_leaves(self):
         temp = ["x", "y", "z"]
         mt_temp = MerkleTree(["x", "y", "z"])
-        mt_temp.makeEven(temp)
+        mt_temp.make_even(temp)
         self.assertEqual(len(temp), 4)
         self.assertEqual(temp[-1], "z")
 
@@ -103,8 +103,8 @@ class TestBlock(unittest.TestCase):
 
     def test_compute_hash_consistency(self):
         # Hash should be deterministic - same inputs produce same hash
-        hash1 = self.block.computeHash()
-        hash2 = self.block.computeHash()
+        hash1 = self.block.compute_hash()
+        hash2 = self.block.compute_hash()
         self.assertEqual(hash1, hash2)
         self.assertEqual(hash1, self.block.hash)
 
@@ -150,45 +150,45 @@ class TestBlockchain(unittest.TestCase):
 
     def test_add_valid_block(self):
         # Adding a valid block should succeed
-        latest = self.blockchain.getLatestBlock()
-        new_block = Block(1, time.time(), "merkle123", latest.computeHash())
+        latest = self.blockchain.get_latest_block()
+        new_block = Block(1, time.time(), "merkle123", latest.compute_hash())
         
-        result = self.blockchain.addBlock(new_block)
+        result = self.blockchain.add_block(new_block)
         self.assertTrue(result)
         self.assertEqual(len(self.blockchain.chain), 2)
-        self.assertEqual(self.blockchain.getLatestBlock(), new_block)
+        self.assertEqual(self.blockchain.get_latest_block(), new_block)
 
     def test_add_invalid_block(self):
         # Adding block with wrong prev_hash should fail
         invalid_block = Block(1, time.time(), "merkle123", "wrong_hash")
         
-        result = self.blockchain.addBlock(invalid_block)
+        result = self.blockchain.add_block(invalid_block)
         self.assertFalse(result)
         self.assertEqual(len(self.blockchain.chain), 1)
 
     def test_is_valid_chain(self):
         # Valid chain should return True
-        self.assertTrue(self.blockchain.isValidChain(self.blockchain.chain))
+        self.assertTrue(self.blockchain.is_valid_chain(self.blockchain.chain))
         
         # Add valid block and test again
-        latest = self.blockchain.getLatestBlock()
-        new_block = Block(1, time.time(), "merkle123", latest.computeHash())
-        self.blockchain.addBlock(new_block)
-        self.assertTrue(self.blockchain.isValidChain(self.blockchain.chain))
+        latest = self.blockchain.get_latest_block()
+        new_block = Block(1, time.time(), "merkle123", latest.compute_hash())
+        self.blockchain.add_block(new_block)
+        self.assertTrue(self.blockchain.is_valid_chain(self.blockchain.chain))
         
         # Empty chain should return False
-        self.assertFalse(self.blockchain.isValidChain([]))
-        self.assertFalse(self.blockchain.isValidChain(None))
+        self.assertFalse(self.blockchain.is_valid_chain([]))
+        self.assertFalse(self.blockchain.is_valid_chain(None))
 
     def test_resolve_forks(self):
         # Create longer valid chain
         longer_chain = [self.blockchain.chain[0]]  # Start with same genesis
-        prev_hash = longer_chain[0].computeHash()
+        prev_hash = longer_chain[0].compute_hash()
         
         for i in range(1, 3):  # Add 2 more blocks
             block = Block(i, time.time(), f"merkle{i}", prev_hash)
             longer_chain.append(block)
-            prev_hash = block.computeHash()
+            prev_hash = block.compute_hash()
         
         # Should replace current chain with longer one
         result = self.blockchain.resolve_forks([longer_chain])
