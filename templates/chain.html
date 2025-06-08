@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="text-center">Blockchain</h3>
+            </div>
+            <div class="card-body">
+                {% if chain %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Index</th>
+                                <th>Timestamp</th>
+                                <th>Signer ID</th>
+                                <th>Merkle Root</th>
+                                <th>Previous Hash</th>
+                                <th>Block Hash</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for block in chain %}
+                            <tr>
+                                <td>{{ block.index }}</td>
+                                <td>{{ block.timestamp }}</td>
+                                <td>{{ block.signer_id }}</td>
+                                <td class="text-truncate" style="max-width: 150px;">{{ block.merkle_root }}</td>
+                                <td class="text-truncate" style="max-width: 150px;">{{ block.prev_hash }}</td>
+                                <td class="text-truncate" style="max-width: 150px;">{{ block.hash }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    No blocks in the chain yet.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

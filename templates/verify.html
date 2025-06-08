@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="text-center">Verify Document</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('verify') }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Select Document to Verify</label>
+                        <input type="file" class="form-control" id="file" name="file" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="signer_id" class="form-label">Your Signer ID</label>
+                        <input type="text" class="form-control" id="signer_id" name="signer_id" value="{{ signer_id }}" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Verify</button>
+                    </div>
+                </form>
+
+                {% if verification_result %}
+                <div class="mt-4">
+                    <h4>Verification Result</h4>
+                    {% if verification_result.verified %}
+                    <div class="alert alert-success">
+                        <p><strong>Status:</strong> Document verified in blockchain</p>
+                        <p><strong>Block Index:</strong> {{ verification_result.block_index }}</p>
+                        <p><strong>Block Hash:</strong> {{ verification_result.block_hash }}</p>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-danger">
+                        <p><strong>Status:</strong> Document not found in blockchain</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
