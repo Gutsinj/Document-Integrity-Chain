@@ -96,6 +96,10 @@ class MerkleTree():
         if not root: 
             root = self.root
         
+        # First check if the hash exists in the leaves
+        if hash not in self.leaves:
+            return False
+            
         try:
             proof = self.generate_proof(hash, self.leaves)
             return root == self.get_root_from_merkle_proof(proof)

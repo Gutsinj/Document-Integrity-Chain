@@ -1,6 +1,7 @@
 from blockchain.block import Block
 import time
 from crypto.key_manager import get_public_key_from_id, generate_keypair
+from blockchain.merkle_tree import MerkleTree
 
 class Blockchain:
     # Initialize empty blockchain with genesis block
@@ -11,7 +12,7 @@ class Blockchain:
     # Create and add the first block (genesis block)
     def create_starting_block(self):
         priv_key, _ = generate_keypair("./keys", "genesis")
-        start = Block(0, time.time(), 0, 0, "genesis", priv_key)
+        start = Block(0, time.time(), MerkleTree([]), 0, "genesis", priv_key)
         self.chain.append(start)
 
     # Return the most recent block in the chain
@@ -67,3 +68,18 @@ class Blockchain:
             return True
         else:
             return False
+
+    # Verify if a file hash exists in the blockchain
+    def verify_file_in_blockchain(self, file_hash):
+        for i, block in enumerate(self.chain):
+            if block.verify_file_in_block(file_hash):
+                return True, i
+        return False, -1
+
+    # Get the merkle proof for a file hash in the blockchain
+    def get_file_proof(self, file_hash):
+        for i, block in enumerate(self.chain):
+            proof = block.get_file_proof(file_hash)
+            if proof is not None:
+                return proof, i
+        return None, -1

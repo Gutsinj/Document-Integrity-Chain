@@ -4,10 +4,11 @@ from crypto.signer import sign_digest, verify_signature
 
 class Block:
     # Initialize block with data and compute hash
-    def __init__(self, index, timestamp, merkle_root, prev_hash, signer_id, private_key):
+    def __init__(self, index, timestamp, merkle_tree, prev_hash, signer_id, private_key):
         self.index = index
         self.timestamp = timestamp
-        self.merkle_root = merkle_root
+        self.merkle_tree = merkle_tree  # Store the complete merkle tree
+        self.merkle_root = merkle_tree.root  # Keep root for backward compatibility
         self.prev_hash = prev_hash
         self.signer_id = signer_id
         self.signature = None
@@ -41,7 +42,6 @@ class Block:
 
         self.signature = sign_digest(header_digest, private_key)
 
-
     def verify_block_signature(self, public_key):
         header_digest = self.compute_hash()
         data = {
@@ -54,3 +54,14 @@ class Block:
         data_serialized = json.dumps(data)
         header_digest = sha256(data_serialized)
         return verify_signature(header_digest, self.signature, public_key)
+
+    # Verify if a file hash exists in the block's merkle tree
+    def verify_file_in_block(self, file_hash):
+        return self.merkle_tree.verify(file_hash)
+
+    # Get the merkle proof for a file hash in the block's merkle tree
+    def get_file_proof(self, file_hash):
+        try:
+            return self.merkle_tree.generate_proof(file_hash, self.merkle_tree.leaves)
+        except ValueError:
+            return None

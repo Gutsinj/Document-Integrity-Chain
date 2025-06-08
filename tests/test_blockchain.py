@@ -108,10 +108,12 @@ class TestBlock(unittest.TestCase):
 
         self.test_index = 1
         self.test_timestamp = time.time()
-        self.test_merkle_root = "abc123"
+        # Create test merkle tree with some file hashes
+        self.test_file_hashes = [sha256("file1"), sha256("file2"), sha256("file3")]
+        self.test_merkle_tree = MerkleTree(self.test_file_hashes)
         self.test_prev_hash = "def456"
         # include private key in block creation
-        self.block = Block(self.test_index, self.test_timestamp, self.test_merkle_root, self.test_prev_hash, self.signer_id, self.priv_key)
+        self.block = Block(self.test_index, self.test_timestamp, self.test_merkle_tree, self.test_prev_hash, self.signer_id, self.priv_key)
 
     def tearDown(self):
         # Restore original key_registry.json
@@ -127,7 +129,8 @@ class TestBlock(unittest.TestCase):
         # Block properties are set correctly
         self.assertEqual(self.block.index, self.test_index)
         self.assertEqual(self.block.timestamp, self.test_timestamp)
-        self.assertEqual(self.block.merkle_root, self.test_merkle_root)
+        self.assertEqual(self.block.merkle_tree, self.test_merkle_tree)
+        self.assertEqual(self.block.merkle_root, self.test_merkle_tree.root)
         self.assertEqual(self.block.prev_hash, self.test_prev_hash)
         self.assertIsNotNone(self.block.hash)
         # signature fields should be set after init
@@ -143,7 +146,7 @@ class TestBlock(unittest.TestCase):
 
     def test_compute_hash_different_data(self):
         # Different block data should produce different hashes
-        block2 = Block(2, self.test_timestamp, self.test_merkle_root, self.test_prev_hash, self.signer_id, self.priv_key)
+        block2 = Block(2, self.test_timestamp, self.test_merkle_tree, self.test_prev_hash, self.signer_id, self.priv_key)
         self.assertNotEqual(self.block.hash, block2.hash)
 
     def test_hash_matches_manual_computation(self):
@@ -151,7 +154,7 @@ class TestBlock(unittest.TestCase):
         expected_data = {
             'index': self.test_index,
             'timestamp': self.test_timestamp,
-            'merkle_root': self.test_merkle_root.hex() if isinstance(self.test_merkle_root, bytes) else self.test_merkle_root,
+            'merkle_root': self.block.merkle_root.hex() if isinstance(self.block.merkle_root, bytes) else self.block.merkle_root,
             'prev_hash': self.test_prev_hash.hex() if isinstance(self.test_prev_hash, bytes) else self.test_prev_hash,
             'signer_id': self.block.signer_id,
             'signature': self.block.signature.hex() if isinstance(self.block.signature, bytes) else self.block.signature
@@ -166,13 +169,39 @@ class TestBlock(unittest.TestCase):
 
     def test_genesis_block(self):
         # Genesis block with zero values and no signing key
-        genesis = Block(0, 0, 0, 0, 0, self.priv_key)
+        genesis = Block(0, 0, MerkleTree([]), 0, 0, self.priv_key)
         self.assertEqual(genesis.index, 0)
         self.assertEqual(genesis.timestamp, 0)
-        self.assertEqual(genesis.merkle_root, 0)
+        self.assertEqual(genesis.merkle_tree.root, None)
         self.assertEqual(genesis.prev_hash, 0)
         self.assertIsNotNone(genesis.hash)
         self.assertIsNotNone(genesis.signer_id)
+
+    def test_verify_file_in_block(self):
+        # Test verifying files that exist in the block
+        for file_hash in self.test_file_hashes:
+            self.assertTrue(self.block.verify_file_in_block(file_hash))
+        
+        # Test verifying a file that doesn't exist in the block
+        non_existent_hash = sha256("not_in_block")
+        self.assertFalse(self.block.verify_file_in_block(non_existent_hash))
+
+    def test_get_file_proof(self):
+        # Test getting proofs for files that exist in the block
+        for file_hash in self.test_file_hashes:
+            proof = self.block.get_file_proof(file_hash)
+            self.assertIsNotNone(proof)
+            self.assertIsInstance(proof, list)
+            self.assertGreater(len(proof), 0)
+            self.assertEqual(proof[0]["hash"], file_hash)
+            
+            # Verify the proof reconstructs to the correct root
+            reconstructed_root = self.block.merkle_tree.get_root_from_merkle_proof(proof)
+            self.assertEqual(reconstructed_root, self.block.merkle_root)
+        
+        # Test getting proof for a file that doesn't exist
+        non_existent_hash = sha256("not_in_block")
+        self.assertIsNone(self.block.get_file_proof(non_existent_hash))
 
 
 class TestBlockchain(unittest.TestCase):
@@ -198,6 +227,10 @@ class TestBlockchain(unittest.TestCase):
         self.priv_key = get_private_key_from_id(self.signer_id)
         self.pub_key = get_public_key_from_id(self.signer_id)
 
+        # Create test merkle trees for blocks
+        self.test_file_hashes = [sha256("file1"), sha256("file2"), sha256("file3")]
+        self.test_merkle_tree = MerkleTree(self.test_file_hashes)
+
     def tearDown(self):
         # Restore original key_registry.json
         with open(self.registry_path, 'w') as f:
@@ -216,7 +249,7 @@ class TestBlockchain(unittest.TestCase):
         self.assertEqual(len(self.blockchain.chain), 1)
         genesis = self.blockchain.chain[0]
         self.assertEqual(genesis.index, 0)
-        self.assertEqual(genesis.merkle_root, 0)
+        self.assertIsNone(genesis.merkle_tree.root)  # Genesis block has empty merkle tree
         self.assertEqual(genesis.prev_hash, 0)
         self.assertIsNotNone(genesis.hash)
         self.assertIsNotNone(genesis.signature)
@@ -224,8 +257,8 @@ class TestBlockchain(unittest.TestCase):
 
     def test_add_valid_block(self):
         latest = self.blockchain.get_latest_block()
-        # include private key in block creation
-        new_block = Block(1, time.time(), "merkle123", latest.compute_hash(), self.signer_id, self.priv_key)
+        # Create new block with merkle tree
+        new_block = Block(1, time.time(), self.test_merkle_tree, latest.compute_hash(), self.signer_id, self.priv_key)
 
         result = self.blockchain.add_block(new_block)
         self.assertTrue(result)
@@ -233,7 +266,8 @@ class TestBlockchain(unittest.TestCase):
         self.assertEqual(self.blockchain.get_latest_block(), new_block)
 
     def test_add_invalid_block(self):
-        invalid_block = Block(1, time.time(), "merkle123", "wrong_hash", self.signer_id, self.priv_key)
+        # Create invalid block with merkle tree but wrong prev_hash
+        invalid_block = Block(1, time.time(), self.test_merkle_tree, "wrong_hash", self.signer_id, self.priv_key)
         
         result = self.blockchain.add_block(invalid_block)
         self.assertFalse(result)
@@ -245,7 +279,7 @@ class TestBlockchain(unittest.TestCase):
 
         # Add valid block and test again
         latest = self.blockchain.get_latest_block()
-        new_block = Block(1, time.time(), "merkle123", latest.compute_hash(), self.signer_id, self.priv_key)
+        new_block = Block(1, time.time(), self.test_merkle_tree, latest.compute_hash(), self.signer_id, self.priv_key)
         self.blockchain.add_block(new_block)
         self.assertTrue(self.blockchain.is_valid_chain(self.blockchain.chain))
 
@@ -259,7 +293,9 @@ class TestBlockchain(unittest.TestCase):
         prev_hash = longer_chain[0].compute_hash()
 
         for i in range(1, 3):
-            block = Block(i, time.time(), f"merkle{i}", prev_hash, self.signer_id, self.priv_key)
+            # Create merkle tree for each block
+            block_merkle = MerkleTree([sha256(f"file{i}")])
+            block = Block(i, time.time(), block_merkle, prev_hash, self.signer_id, self.priv_key)
             longer_chain.append(block)
             prev_hash = block.compute_hash()
 
@@ -272,6 +308,52 @@ class TestBlockchain(unittest.TestCase):
         result = self.blockchain.resolve_forks([shorter_chain])
         self.assertFalse(result)
         self.assertEqual(len(self.blockchain.chain), 3)
+
+    def test_verify_file_in_blockchain(self):
+        # Create test file hashes and merkle tree
+        test_file_hashes = [sha256("file1"), sha256("file2"), sha256("file3")]
+        test_merkle_tree = MerkleTree(test_file_hashes)
+
+        # Add a block with test files
+        latest = self.blockchain.get_latest_block()
+        new_block = Block(1, time.time(), test_merkle_tree, latest.compute_hash(), self.signer_id, self.priv_key)
+        self.assertTrue(self.blockchain.add_block(new_block))  # Verify block was added successfully
+        self.assertEqual(len(self.blockchain.chain), 2)  # Verify chain length
+
+        # Test verifying files that exist in the blockchain
+        for file_hash in test_file_hashes:
+            exists, block_index = self.blockchain.verify_file_in_blockchain(file_hash)
+            self.assertTrue(exists)
+            self.assertEqual(block_index, 1)  # Should be in the second block (index 1)
+
+        # Test verifying a file that doesn't exist
+        non_existent_hash = sha256("not_in_blockchain")
+        exists, block_index = self.blockchain.verify_file_in_blockchain(non_existent_hash)
+        self.assertFalse(exists)
+        self.assertEqual(block_index, -1)
+
+    def test_get_file_proof(self):
+        # Add a block with test files
+        latest = self.blockchain.get_latest_block()
+        new_block = Block(1, time.time(), self.test_merkle_tree, latest.compute_hash(), self.signer_id, self.priv_key)
+        self.blockchain.add_block(new_block)
+
+        # Test getting proofs for files that exist
+        for file_hash in self.test_file_hashes:
+            proof, block_index = self.blockchain.get_file_proof(file_hash)
+            self.assertIsNotNone(proof)
+            self.assertEqual(block_index, 1)  # Should be in the second block (index 1)
+            
+            # Verify the proof reconstructs to the correct root
+            block = self.blockchain.chain[block_index]
+            reconstructed_root = block.merkle_tree.get_root_from_merkle_proof(proof)
+            self.assertEqual(reconstructed_root, block.merkle_root)
+
+        # Test getting proof for a file that doesn't exist
+        non_existent_hash = sha256("not_in_blockchain")
+        proof, block_index = self.blockchain.get_file_proof(non_existent_hash)
+        self.assertIsNone(proof)
+        self.assertEqual(block_index, -1)
 
 
 if __name__ == "__main__":
