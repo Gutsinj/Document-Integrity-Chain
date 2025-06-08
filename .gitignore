@@ -2,3 +2,5 @@
 crypto/keys
 .venv
 venv
+*.egg-info/
+key_registry.json
