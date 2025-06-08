@@ -1,2 +1,4 @@
 */__pycache__/
 crypto/keys
+.venv
+venv

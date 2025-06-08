@@ -1,6 +1,7 @@
 import time
 import json
 import unittest
+import os
 from blockchain.block import Block
 from blockchain.chain import Blockchain
 from crypto.hash_utils import sha256
@@ -90,7 +91,18 @@ class TestBlock(unittest.TestCase):
         # generate test keypair for signing
         from crypto.key_manager import generate_keypair, load_private_key, load_public_key
         self.signer_id = "test"
-        generate_keypair(output_path='./tests/keys', signer_id=self.signer_id)
+        self.test_output_path = './tests/keys'
+        os.makedirs(self.test_output_path, exist_ok=True)
+        
+        # Backup existing key_registry.json if it exists
+        self.registry_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "key_registry.json")
+        if os.path.exists(self.registry_path):
+            with open(self.registry_path, 'r') as f:
+                self.original_registry = json.load(f)
+        else:
+            self.original_registry = {}
+            
+        generate_keypair(output_path=self.test_output_path, signer_id=self.signer_id)
         self.priv_key = load_private_key('./tests/keys/private_key_test.pem')
         self.pub_key = load_public_key('./tests/keys/public_key_test.pem')
 
@@ -100,6 +112,16 @@ class TestBlock(unittest.TestCase):
         self.test_prev_hash = "def456"
         # include private key in block creation
         self.block = Block(self.test_index, self.test_timestamp, self.test_merkle_root, self.test_prev_hash, self.signer_id, self.priv_key)
+
+    def tearDown(self):
+        # Restore original key_registry.json
+        with open(self.registry_path, 'w') as f:
+            json.dump(self.original_registry, f, indent=4)
+        # Clean up test keys
+        for key_file in os.listdir(self.test_output_path):
+            if (key_file.startswith("private_key_") or key_file.startswith("public_key_")) and \
+               (key_file.endswith("genesis.pem") or key_file.endswith("test.pem")):
+                os.remove(os.path.join(self.test_output_path, key_file))
 
     def test_block_initialization(self):
         # Block properties are set correctly
@@ -158,12 +180,36 @@ class TestBlockchain(unittest.TestCase):
         from crypto.key_manager import generate_keypair, get_private_key_from_id, get_public_key_from_id
         # setup blockchain and test keypair
         self.signer_id = 'test'
-        self.output_path='./tests/keys'
-        generate_keypair(output_path=self.output_path, signer_id=self.signer_id)
+        self.test_output_path = './tests/keys'
+        self.main_keys_path = './keys'
+        os.makedirs(self.test_output_path, exist_ok=True)
+        os.makedirs(self.main_keys_path, exist_ok=True)
+        
+        # Backup existing key_registry.json if it exists
+        self.registry_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "key_registry.json")
+        if os.path.exists(self.registry_path):
+            with open(self.registry_path, 'r') as f:
+                self.original_registry = json.load(f)
+        else:
+            self.original_registry = {}
+            
+        generate_keypair(output_path=self.test_output_path, signer_id=self.signer_id)
         self.blockchain = Blockchain()
         self.priv_key = get_private_key_from_id(self.signer_id)
         self.pub_key = get_public_key_from_id(self.signer_id)
-        
+
+    def tearDown(self):
+        # Restore original key_registry.json
+        with open(self.registry_path, 'w') as f:
+            json.dump(self.original_registry, f, indent=4)
+            
+        # Clean up test keys in both directories
+        for directory in [self.test_output_path, self.main_keys_path]:
+            if os.path.exists(directory):
+                for key_file in os.listdir(directory):
+                    if (key_file.startswith("private_key_") or key_file.startswith("public_key_")) and \
+                       (key_file.endswith("genesis.pem") or key_file.endswith("test.pem")):
+                        os.remove(os.path.join(directory, key_file))
 
     def test_blockchain_initialization(self):
         # Blockchain should start with genesis block
