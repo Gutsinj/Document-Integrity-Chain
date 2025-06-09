@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # Required for flash messages and session
+app.secret_key = 'your-secret-key-here'  # Fixed secret key for all nodes
 blockchain = Blockchain()
 
 # Ensure keys directory exists
@@ -75,15 +75,11 @@ def index():
             flash('Please enter a signer ID', 'danger')
             return redirect(url_for('index'))
         
-        if check_credentials(signer_id):
-            flash('Credentials already exist for this signer ID', 'warning')
-            return redirect(url_for('index'))
-        
         try:
             output_path = './keys'
             generate_keypair(output_path, signer_id)
             session['signer_id'] = signer_id
-            flash('Credentials generated successfully', 'success')
+            flash('Successfully registered', 'success')
             return redirect(url_for('upload'))
         except Exception as e:
             flash(f'Error generating credentials: {str(e)}', 'danger')
@@ -94,7 +90,12 @@ def index():
 @app.route('/upload', methods=['GET', 'POST'])
 def upload():
     if 'signer_id' not in session:
-        flash('Please register first', 'warning')
+        flash('Please enter a signer ID', 'warning')
+        return redirect(url_for('index'))
+    
+    # Check if the signer ID is in the registry
+    if not check_credentials(session['signer_id']):
+        flash('Please enter a signer ID', 'warning')
         return redirect(url_for('index'))
     
     if request.method == 'POST':
@@ -157,12 +158,17 @@ def upload():
             if 'file_path' in locals():
                 os.unlink(file_path)
     
-    return render_template('upload.html', signer_id=session['signer_id'])
+    return render_template('upload.html')
 
 @app.route('/verify', methods=['GET', 'POST'])
 def verify():
     if 'signer_id' not in session:
-        flash('Please register first', 'warning')
+        flash('Please enter a signer ID', 'warning')
+        return redirect(url_for('index'))
+    
+    # Check if the signer ID is in the registry
+    if not check_credentials(session['signer_id']):
+        flash('Please enter a signer ID', 'warning')
         return redirect(url_for('index'))
     
     verification_result = None
@@ -217,7 +223,7 @@ def verify():
             if 'file_path' in locals():
                 os.unlink(file_path)
     
-    return render_template('verify.html', signer_id=session['signer_id'], verification_result=verification_result)
+    return render_template('verify.html', verification_result=verification_result)
 
 @app.route('/chain')
 def view_chain():
@@ -255,4 +261,4 @@ def create_block_from_docs(docs, signer_id, private_key):
     return None
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001) 
+    app.run(host='127.0.0.1', port=5001, debug=True) 
