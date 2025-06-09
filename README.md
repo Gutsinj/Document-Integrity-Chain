@@ -2,6 +2,10 @@
 
 A blockchain-based system for ensuring document integrity and verification. This application allows users to upload documents, which are then stored in IPFS and their hashes are recorded in a blockchain. The system provides document verification capabilities to ensure documents haven't been tampered with.
 
+## Why This Project
+
+I created this project to bring together two key areas of my experience: academic cryptography and real-world legal work. While working at a law firm, I saw firsthand how critical it is to preserve the authenticity of legal documents—especially in sensitive cases where document tampering could undermine trust or jeopardize outcomes. At the same time, my coursework in cryptography introduced me to the technical principles behind secure, verifiable systems. I realized that blockchain, with its immutable structure and decentralized trust model, could be the perfect solution. This project is the result of that convergence—a practical application of cryptographic principles to protect document integrity in a legal context.
+
 ## Features
 
 - Document upload and storage in IPFS
