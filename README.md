@@ -69,3 +69,11 @@ python app.py
 - `static/`: Static files (CSS, JS)
 - `keys/`: Key storage directory
 - `tests/`: Test files
+
+## Next Steps
+- Strengthen key management and signer authentication
+- Add metadata support for better document traceability
+- Build a basic audit dashboard for blockchain activity
+- Explore smart contract integration for broader deployment
+
+**Feedback and contributions are welcome!**
