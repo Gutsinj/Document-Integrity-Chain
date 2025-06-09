@@ -17,7 +17,6 @@ I created this project to bring together two key areas of my experience: academi
 ## Prerequisites
 
 - Python 3.8 or higher
-- IPFS daemon running on port 5002
 - Virtual environment (recommended)
 
 ## Installation
@@ -44,11 +43,6 @@ export PYTHONPATH="$(pwd):$PYTHONPATH"
 pip install -r requirements.txt
 ```
 
-5. Start IPFS daemon (in a separate terminal):
-```bash
-ipfs daemon
-```
-
 ## Running the Application
 
 1. Start the Flask application:
@@ -56,7 +50,7 @@ ipfs daemon
 python app.py
 ```
 
-2. Access the web interface at http://127.0.0.1:5001
+2. Access the web interface at http://127.0.0.1:5000
 
 ## Usage
 
@@ -75,7 +69,3 @@ python app.py
 - `static/`: Static files (CSS, JS)
 - `keys/`: Key storage directory
 - `tests/`: Test files
-
-## Note
-
-The application requires an IPFS daemon running on port 5002. If IPFS is not available, the system will use mock hashes for demonstration purposes. 
