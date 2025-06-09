@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here'  # Fixed secret key for all nodes
+app.secret_key = 'TEST'
 blockchain = Blockchain()
 
 # Ensure keys directory exists
@@ -39,8 +39,8 @@ except Exception as e:
 # Store pending documents
 pending_docs = deque(maxlen=2)
 
+# Cleanup function to remove all key files and reset key registry
 def cleanup_keys():
-    """Remove all key files and reset key registry."""
     try:
         # Remove all .pem files from keys directory
         key_files = glob.glob('./keys/*.pem')
@@ -67,6 +67,7 @@ def check_credentials(signer_id):
     except (KeyError, FileNotFoundError):
         return False
 
+# Index page
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -87,6 +88,7 @@ def index():
     
     return render_template('index.html')
 
+# Upload page
 @app.route('/upload', methods=['GET', 'POST'])
 def upload():
     if 'signer_id' not in session:
@@ -160,6 +162,7 @@ def upload():
     
     return render_template('upload.html')
 
+# Verify page
 @app.route('/verify', methods=['GET', 'POST'])
 def verify():
     if 'signer_id' not in session:
@@ -225,6 +228,7 @@ def verify():
     
     return render_template('verify.html', verification_result=verification_result)
 
+# Chain page
 @app.route('/chain')
 def view_chain():
     chain_data = []
@@ -240,6 +244,7 @@ def view_chain():
     
     return render_template('chain.html', chain=chain_data)
 
+# Create block from documents
 def create_block_from_docs(docs, signer_id, private_key):
     """Create a new block from a list of documents."""
     # Create merkle tree with all document hashes
