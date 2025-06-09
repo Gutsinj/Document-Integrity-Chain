@@ -4,7 +4,7 @@ from blockchain.chain import Blockchain
 from blockchain.merkle_tree import MerkleTree
 from crypto.hash_utils import sha256
 from crypto.key_manager import get_private_key_from_id, generate_keypair
-from storage.ipfs_client import connect_multiaddr, add_file
+from storage.ipfs_client import add_file, IPFSDaemon
 import time
 import os
 import tempfile
@@ -25,16 +25,12 @@ blockchain = Blockchain()
 # Ensure keys directory exists
 os.makedirs('./keys', exist_ok=True)
 
+# Initialize IPFS daemon
+ipfs_daemon = IPFSDaemon()
+ipfs_daemon.start()
+
 # IPFS node address
 IPFS_NODE = "/ip4/127.0.0.1/tcp/5001"
-
-# Initialize IPFS client
-try:
-    ipfs_client = connect_multiaddr(IPFS_NODE)
-    logger.info("Successfully connected to IPFS node")
-except Exception as e:
-    logger.error(f"Failed to connect to IPFS node: {str(e)}")
-    ipfs_client = None
 
 # Store pending documents
 pending_docs = deque(maxlen=2)
@@ -56,8 +52,9 @@ def cleanup_keys():
     except Exception as e:
         logger.error(f"Error during cleanup: {str(e)}")
 
-# Register cleanup function
+# Register cleanup functions
 atexit.register(cleanup_keys)
+atexit.register(ipfs_daemon.cleanup)
 
 def check_credentials(signer_id):
     """Check if a signer has valid credentials."""
@@ -116,16 +113,16 @@ def upload():
                 file.save(temp_file.name)
                 file_path = temp_file.name
             
-            # Add file to IPFS if client is available
-            if ipfs_client:
+            # Add file to IPFS if daemon is available
+            if ipfs_daemon:
                 try:
-                    ipfs_hash = add_file(ipfs_client, file_path)
+                    ipfs_hash = add_file(file_path)
                     logger.info(f"File added to IPFS with hash: {ipfs_hash}")
                 except Exception as e:
                     logger.error(f"Failed to add file to IPFS: {str(e)}")
                     ipfs_hash = f"Qm{sha256(open(file_path, 'rb').read()).hex()[:40]}"
             else:
-                logger.warning("IPFS client not available, using mock hash")
+                logger.warning("IPFS daemon not available, using mock hash")
                 ipfs_hash = f"Qm{sha256(open(file_path, 'rb').read()).hex()[:40]}"
             
             # Calculate file hash
