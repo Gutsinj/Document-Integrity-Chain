@@ -4,3 +4,4 @@ crypto/keys
 venv
 *.egg-info/
 key_registry.json
+test_docs/*

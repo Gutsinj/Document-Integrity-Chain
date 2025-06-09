@@ -22,9 +22,8 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Required for flash messages and session
 blockchain = Blockchain()
 
-# Ensure required directories exist
+# Ensure keys directory exists
 os.makedirs('./keys', exist_ok=True)
-os.makedirs('./temp', exist_ok=True)
 
 # IPFS node address
 IPFS_NODE = "/ip4/127.0.0.1/tcp/5002"
@@ -109,8 +108,8 @@ def upload():
             return redirect(request.url)
         
         try:
-            # Save file temporarily
-            with tempfile.NamedTemporaryFile(delete=False, dir='./temp') as temp_file:
+            # Save file temporarily using system temp directory
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                 file.save(temp_file.name)
                 file_path = temp_file.name
             
@@ -179,8 +178,8 @@ def verify():
             return redirect(request.url)
         
         try:
-            # Save file temporarily
-            with tempfile.NamedTemporaryFile(delete=False, dir='./temp') as temp_file:
+            # Save file temporarily using system temp directory
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                 file.save(temp_file.name)
                 file_path = temp_file.name
             
