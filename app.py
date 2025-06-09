@@ -26,7 +26,7 @@ blockchain = Blockchain()
 os.makedirs('./keys', exist_ok=True)
 
 # IPFS node address
-IPFS_NODE = "/ip4/127.0.0.1/tcp/5002"
+IPFS_NODE = "/ip4/127.0.0.1/tcp/5001"
 
 # Initialize IPFS client
 try:
@@ -266,4 +266,4 @@ def create_block_from_docs(docs, signer_id, private_key):
     return None
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5001, debug=True) 
+    app.run(host='127.0.0.1', port=5000, debug=True) 

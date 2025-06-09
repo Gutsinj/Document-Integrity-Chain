@@ -16,12 +16,22 @@ def generate_keypair(output_path, signer_id):
     private_path = os.path.join(output_path, "private_key_" + str(signer_id) + ".pem")
     public_path = os.path.join(output_path, "public_key_" + str(signer_id) + ".pem")
 
+    os.makedirs(output_path, exist_ok=True)
+
     with open(private_path, "wb") as f:
         f.write(private_pem)
 
     with open(public_path, "wb") as f:
         f.write(public_pem)
 
+    key_registry_path = os.path.join(PARENT_DIR, "key_registry.json")
+
+    try:
+        with open(key_registry_path, 'x') as f:
+            json.dump({}, f)
+    except FileExistsError:
+        pass
+    
     data = None
     with open(os.path.join(PARENT_DIR, "key_registry.json"), "r") as f:
         data = json.load(f)
